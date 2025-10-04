@@ -21,7 +21,8 @@ Open http://localhost:3000 in your browser when running locally.
 
 - src/config.js: getApiBase() logic.
 - src/api/client.js: getHealth() and postChat() helpers.
-- src/App.js: Minimal UI with health banner and chat input.
+- src/components/MessageList.jsx: Simple chat message list component.
+- src/App.js: Minimal UI with health banner and chat input, using MessageList.
 
 ## Configuration
 
@@ -35,7 +36,19 @@ Note: Only variables prefixed with REACT_APP_ are exposed in React.
 ## Behavior
 
 - Health: Any HTTP 200 from /api/health is treated as "ok"; otherwise "unavailable".
-- Chat: Sends { messages, prompt } to POST /api/chat. If the backend is not implemented, the UI shows an error and a friendly assistant message indicating unavailability.
+- Chat:
+  - Sends body { messages, prompt } to POST /api/chat.
+  - Normalizes ChatResponse.message { role, content } into a simple { role, content } object for the UI.
+  - When the backend responds with an error, the UI displays ErrorResponse.detail (if provided) and appends a friendly assistant fallback message.
+
+## Tests
+
+Lightweight tests mock fetch:
+- src/__tests__/client.test.js validates getHealth and postChat normalization and error surfacing.
+- src/__tests__/app.test.js renders App, checks the health banner, sends a chat, and verifies error banner behavior.
+
+Run tests:
+- npm test
 
 ## Troubleshooting
 

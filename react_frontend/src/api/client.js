@@ -18,8 +18,24 @@ async function fetchWithRetry(path, options = {}, retries = 1, backoffMs = 400) 
         await new Promise(r => setTimeout(r, backoffMs));
         return fetchWithRetry(path, options, retries - 1, backoffMs * 1.5);
       }
-      const text = await res.text().catch(() => '');
-      const err = new Error(text || res.statusText || `HTTP ${res.status}`);
+      // Try to parse backend ErrorResponse to surface detail
+      let detailText = '';
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        try {
+          const data = await res.json();
+          detailText = data?.detail || '';
+        } catch {
+          // ignore
+        }
+      } else {
+        try {
+          detailText = await res.text();
+        } catch {
+          // ignore
+        }
+      }
+      const err = new Error(detailText || res.statusText || `HTTP ${res.status}`);
       err.status = res.status;
       err.url = url;
       throw err;
@@ -50,18 +66,24 @@ export async function getHealth() {
 
 // PUBLIC_INTERFACE
 export async function postChat({ messages = [], prompt = '' } = {}) {
-  /** POST to /api/chat; returns normalized { role, content } or assistant string. */
+  /** POST to /api/chat; returns normalized { role, content } from ChatResponse.message. */
   const res = await fetchWithRetry('/api/chat', {
     method: 'POST',
     body: JSON.stringify({ messages, prompt }),
   });
 
+  // Normalize response according to OpenAPI:
+  // ChatResponse => { message: { role, content } }
   if (res && typeof res === 'object') {
-    const msg = res.message || res.reply || res.data;
+    const msg = res.message;
     if (msg && typeof msg === 'object' && msg.role && msg.content) {
       return { role: msg.role, content: msg.content };
     }
+    // Fallbacks for potential alternative shapes
     if (typeof res.reply === 'string') return { role: 'assistant', content: res.reply };
+    if (res.data && typeof res.data === 'object' && res.data.role && res.data.content) {
+      return { role: res.data.role, content: res.data.content };
+    }
   }
   const text = typeof res === 'string' ? res : JSON.stringify(res ?? '');
   return { role: 'assistant', content: text || '(no response)' };
