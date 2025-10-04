@@ -5,6 +5,7 @@ async function fetchWithRetry(path, options = {}, retries = 2, backoffMs = 400) 
   const base = getApiBase();
   const url = `${base}${path}`;
   try {
+    try { console.debug("[api] fetchWithRetry URL:", url); } catch {}
     const res = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
@@ -43,15 +44,27 @@ async function fetchWithRetry(path, options = {}, retries = 2, backoffMs = 400) 
 export async function getHealth() {
   /** Get backend health status from /api/health */
   try {
-    const data = await fetchWithRetry('/api/health', { method: 'GET' });
-    // Normalize to 'ok' or 'unavailable'
-    if (data && typeof data === 'object' && data.status === 'ok') {
+    // We call fetch directly to also inspect status
+    const base = getApiBase();
+    const url = `${base}/api/health`;
+    try { console.debug("[api] getHealth URL:", url); } catch {}
+    const res = await fetch(url, { method: 'GET' });
+    if (res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const data = await res.json().catch(() => ({}));
+        try { console.debug("[api] getHealth JSON:", data); } catch {}
+        return 'ok';
+      }
+      const text = (await res.text().catch(() => '')).trim().toLowerCase();
+      try { console.debug("[api] getHealth text:", text); } catch {}
+      // Any 200 is ok; keep for compatibility
       return 'ok';
     }
-    const text = typeof data === 'string' ? data.trim().toLowerCase() : '';
-    if (text === 'ok') return 'ok';
+    try { console.warn("[api] getHealth non-OK status:", res.status); } catch {}
     return 'unavailable';
-  } catch {
+  } catch (e) {
+    try { console.error("[api] getHealth error:", e?.message || e); } catch {}
     return 'unavailable';
   }
 }
