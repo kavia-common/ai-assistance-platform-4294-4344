@@ -52,14 +52,24 @@ async function fetchWithRetry(path, options = {}, retries = 1, backoffMs = 400) 
   }
 }
 
-// PUBLIC_INTERFACE
+ // PUBLIC_INTERFACE
 export async function getHealth() {
   /** Returns 'ok' for any HTTP 200 from /api/health; otherwise 'unavailable'. */
   try {
     const base = getApiBase();
-    const res = await fetch(`${base}/api/health`, { method: 'GET' });
+    // Use CORS-safe GET without headers to avoid preflight, and bypass caches.
+    const res = await fetch(`${base}/api/health`, {
+      method: 'GET',
+      mode: 'cors',
+      cache: 'no-store',
+      credentials: 'omit',
+    });
     return res.ok ? 'ok' : 'unavailable';
-  } catch {
+  } catch (e) {
+    // Attach context for easier troubleshooting in DevTools without changing UI contract
+    if (e && typeof e === 'object') {
+      e.context = { where: 'getHealth', apiBase: getApiBase() };
+    }
     return 'unavailable';
   }
 }
