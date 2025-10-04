@@ -1,8 +1,9 @@
 import { getApiBase } from '../config';
 
-// Basic JSON fetch with retry/backoff for network errors only
+// Basic JSON/text fetch with retry/backoff for network errors only
 async function fetchWithRetry(path, options = {}, retries = 2, backoffMs = 400) {
-  const url = `${getApiBase()}${path}`;
+  const base = getApiBase();
+  const url = `${base}${path}`;
   try {
     const res = await fetch(url, {
       headers: {
@@ -47,8 +48,8 @@ export async function getHealth() {
     if (data && typeof data === 'object' && data.status === 'ok') {
       return 'ok';
     }
-    // Some backends may return simple strings; coerce truthy 'ok'
-    if (data === 'ok') return 'ok';
+    const text = typeof data === 'string' ? data.trim().toLowerCase() : '';
+    if (text === 'ok') return 'ok';
     return 'unavailable';
   } catch {
     return 'unavailable';

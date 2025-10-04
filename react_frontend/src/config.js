@@ -2,10 +2,10 @@
  * Frontend configuration for API base URL resolution and startup health check.
  *
  * Resolution priority:
- * - If window.__API_BASE__ is set, use it (allows runtime override).
- * - If REACT_APP_API_BASE env is set at build time, use it.
- * - Prefer explicit local backend default http://localhost:3001 for split-port dev/preview.
- * - Finally, use window.location.origin for same-origin reverse-proxy deployments.
+ * 1) window.__API_BASE__ (runtime override)
+ * 2) REACT_APP_API_BASE (build-time)
+ * 3) Same-origin (window.location.origin)
+ * 4) http://localhost:3001 (local dev fallback)
  */
 
 // Normalize a candidate base to ensure it looks like an absolute URL string
@@ -28,20 +28,13 @@ export function getApiBase() {
   if (fromWindow) return fromWindow;
   if (fromEnv) return fromEnv;
 
-  // Prefer explicit local backend port for split-port dev environments
-  const localDefault = "http://localhost:3001";
-
-  // If running in a context where 3001 is not reachable, callers can override via window.__API_BASE__ or env
-  if (typeof window !== "undefined") {
-    // In most dev/preview setups, backend is exposed on 3001
-    return localDefault;
-  }
-
-  // Last resort: same-origin (used when a reverse proxy mounts /api on the same host)
-  if (win && win.location) {
+  // Step 3: same-origin fallback if available
+  if (win && win.location && win.location.origin) {
     return (win.location.origin || "").replace(/\/+$/, "");
   }
-  return localDefault;
+
+  // Step 4: final fallback for local development
+  return "http://localhost:3001";
 }
 
 // PUBLIC_INTERFACE
@@ -50,8 +43,15 @@ export async function checkHealth(apiBase = getApiBase()) {
   try {
     const res = await fetch(`${apiBase}/api/health`, { method: "GET" });
     if (!res.ok) return false;
-    const data = await res.json().catch(() => ({}));
-    return data && data.status === "ok";
+
+    // Try JSON first, then text, normalize to ok/unavailable
+    const contentType = res.headers.get("content-type") || "";
+    if (/application\/json/i.test(contentType)) {
+      const data = await res.json().catch(() => ({}));
+      return !!(data && data.status === "ok");
+    }
+    const text = (await res.text().catch(() => "")).trim().toLowerCase();
+    return text === "ok";
   } catch {
     return false;
   }
