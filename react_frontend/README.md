@@ -1,83 +1,44 @@
-# AI Copilot React Frontend
+# AI Copilot React Frontend (Reset Minimal Scaffold)
 
-This is the frontend web interface for the AI Copilot. It is a lightweight React app with a clean, classic UI styled using the Heritage Brown theme. The frontend consumes a FastAPI backend via REST endpoints.
+This frontend has been reset to a minimal React app that:
+- Displays a health status banner by calling GET /api/health.
+- Provides a simple chat input that POSTs to /api/chat (stub-friendly; handles missing backend gracefully).
+- Resolves the backend API base using src/config.js with the following priority:
+  1) window.__API_BASE__ (runtime)
+  2) REACT_APP_API_BASE (build-time)
+  3) If running on http://localhost:3000, default to http://localhost:3001
+  4) Same-origin fallback
 
-## Overview
+## Run
 
-The frontend runs on port 3000 by default, and it communicates with the backend which runs on port 3001. The UI includes a header, a collapsible sidebar, and a central chat workspace. A health banner at the top of the chat surface displays the backend status as either “ok” or “unavailable” based on /api/health.
+- npm start
+- npm run build
+- npm test
 
-Key runtime behavior:
-- Health banner: Shows “ok” when the backend health endpoint returns status ok; otherwise shows “unavailable”.
-- Chat API contract: The chat endpoint expects a request body { messages: [{ role, content }], prompt: string } and returns { message: { role, content } }.
-- Suggestions: On initial load, optional suggestions are fetched from /api/suggest and displayed when there are no messages yet.
+Open http://localhost:3000 in your browser when running locally.
 
-## Getting Started
+## Files of interest
 
-In the project directory, you can run:
-
-- npm start  
-  Runs the app in development mode.  
-  Open http://localhost:3000 to view it in your browser.
-
-- npm test  
-  Launches the test runner in interactive watch mode.
-
-- npm run build  
-  Builds the app for production to the build folder. It bundles React in production mode and optimizes the build for best performance.
-
-Note on preview: In the hosted preview environment, services are orchestrated by the platform. Do not include commands to start preview services manually; simply use the provided preview URLs.
+- src/config.js: getApiBase() logic.
+- src/api/client.js: getHealth() and postChat() helpers.
+- src/App.js: Minimal UI with health banner and chat input.
 
 ## Configuration
 
-The frontend determines which backend to call using a clear resolution order. The logic resides in src/config.js and is used by the API client in src/api/client.js.
-
-API base resolution order:
-1) window.__API_BASE__ if defined at runtime in the hosting page. This provides a runtime override without rebuilding.
-2) process.env.REACT_APP_API_BASE if provided at build time. This can be set via an .env file or environment variables during build.
-3) Local dev convenience: if the app is running at http://localhost:3000, default to http://localhost:3001.
-4) Same-origin fallback: If the app is deployed behind a reverse proxy that maps /api to the backend on the same host, the app uses window.location.origin.
-
-Resulting behavior:
-- Local development with two ports (frontend: 3000, backend: 3001): Either set REACT_APP_API_BASE=http://localhost:3001 in an .env file or rely on the default that switches to 3001 when served at 3000.
-- If your backend runs on a different port (e.g., 8000), set REACT_APP_API_BASE=http://localhost:8000 and restart the dev server.
-- Same-origin deployment behind a proxy: Omit window.__API_BASE__ and REACT_APP_API_BASE; the app will call the backend at the same origin (e.g., https://yourdomain) under /api.
-- Dynamic runtime override: If you inject window.__API_BASE__ into the hosting page, that value takes precedence.
-
-Ports used:
-- Frontend: 3000
-- Backend: 3001 (default; change via REACT_APP_API_BASE if needed)
-
-## Environment Variables
-
-You can optionally create a .env file at the project root of this frontend to pin the backend base URL for local development convenience.
-
-Examples:
+Optional .env at project root:
 REACT_APP_API_BASE=http://localhost:3001
-# Or if your backend runs on 8000
+# Or another backend:
 # REACT_APP_API_BASE=http://localhost:8000
 
-With this set, the app will use the specified API base even if window.__API_BASE__ is not provided.
+Note: Only variables prefixed with REACT_APP_ are exposed in React.
 
-Note: Only variables prefixed with REACT_APP_ are exposed to the frontend code.
+## Behavior
 
-## Development Notes
-
-- Health display: The health check is performed against GET /api/health. The frontend normalizes any 200 response into "ok" (any non-2xx -> "unavailable") for display in the banner. The target URL resolves to `${getApiBase()}/api/health` which defaults to http://localhost:3001/api/health when the UI runs at :3000 unless overridden. See src/api/client.js:getHealth and src/components/ChatWindow.js for the UI handling.
-- Chat flow: Sending a message triggers a POST to /api/chat with payload { messages: [{ role, content }], prompt: string }. The frontend expects a response { message: { role, content } } and displays it as the assistant’s reply. See src/api/client.js:postChat and src/hooks/useChat.js.
-- Suggestions: Optional initial suggestions are loaded from GET /api/suggest and displayed when there are no messages yet. See src/api/client.js:getSuggestions and src/components/ChatWindow.js.
+- Health: Any HTTP 200 from /api/health is treated as "ok"; otherwise "unavailable".
+- Chat: Sends { messages, prompt } to POST /api/chat. If the backend is not implemented, the UI shows an error and a friendly assistant message indicating unavailability.
 
 ## Troubleshooting
 
-- I see “Service status: unavailable”:
-  This indicates the health check failed. Confirm your backend is reachable and that the API base is correct. If developing locally on split ports:
-  - If backend runs on 3001: set REACT_APP_API_BASE=http://localhost:3001 or rely on the default behavior when UI runs on :3000.
-  - If backend runs on 8000: set REACT_APP_API_BASE=http://localhost:8000 and restart the dev server.
-
-- CORS or mixed-content errors:
-  If the frontend and backend are on different origins, configure CORS on the backend or use a local reverse proxy so that the app can use same-origin calls. In preview, rely on the platform configuration rather than manual changes.
-
-- The app calls the wrong API host:
-  Check console logs for “[config] API base resolved to: …”. If incorrect, set REACT_APP_API_BASE accordingly and restart, or inject window.__API_BASE__ at runtime. Ensure your deployment expects same-origin and that /api is routed correctly.
-
-- How to start the preview:
-  The preview system is managed by the platform. You should not manually start services in preview mode. Use the provided preview URLs for the frontend (port 3000) and backend (port 3001).
+- If the banner shows "unavailable", verify the backend is running and the API base URL is correct.
+- For split-port local dev, leave defaults (frontend 3000, backend 3001) or set REACT_APP_API_BASE accordingly.
+- CORS errors indicate cross-origin issues; configure backend CORS or use same-origin deployment.
