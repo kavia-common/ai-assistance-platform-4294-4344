@@ -6,12 +6,20 @@ async function fetchWithRetry(path, options = {}, retries = 2, backoffMs = 400) 
   const url = `${base}${path}`;
   try {
     try { console.debug("[api] fetchWithRetry URL:", url); } catch {}
+    // Build headers: only set Content-Type when we have a body and it wasn't provided.
+    const hasBody = typeof options.body !== 'undefined' && options.body !== null;
+    const providedHeaders = options.headers || {};
+    const contentTypeProvided = Object.keys(providedHeaders).some(
+      (k) => k.toLowerCase() === 'content-type'
+    );
+    const headers = {
+      ...(hasBody && !contentTypeProvided ? { 'Content-Type': 'application/json' } : {}),
+      ...providedHeaders,
+    };
+
     const res = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers || {}),
-      },
       ...options,
+      headers,
     });
 
     // Treat non-2xx as error but do not retry unless status is 502/503/504
