@@ -59,7 +59,7 @@ Note: Only variables prefixed with REACT_APP_ are exposed to the frontend code.
 
 ## Development Notes
 
-- Health display: The health check is performed against GET /api/health. The frontend normalizes any response into ok or unavailable for display in the banner. See src/api/client.js:getHealth and src/components/ChatWindow.js for the UI handling.
+- Health display: The health check is performed against GET /api/health. The frontend normalizes any 200 response into "ok" (any non-2xx -> "unavailable") for display in the banner. The target URL resolves to `${getApiBase()}/api/health` which is http://localhost:3001/api/health for local development unless overridden. See src/api/client.js:getHealth and src/components/ChatWindow.js for the UI handling.
 - Chat flow: Sending a message triggers a POST to /api/chat with payload { messages: [{ role, content }], prompt: string }. The frontend expects a response { message: { role, content } } and displays it as the assistant’s reply. See src/api/client.js:postChat and src/hooks/useChat.js.
 - Suggestions: Optional initial suggestions are loaded from GET /api/suggest and displayed when there are no messages yet. See src/api/client.js:getSuggestions and src/components/ChatWindow.js.
 

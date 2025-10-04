@@ -40,34 +40,38 @@ async function fetchWithRetry(path, options = {}, retries = 2, backoffMs = 400) 
   }
 }
 
-// PUBLIC_INTERFACE
-export async function getHealth() {
-  /** Get backend health status from /api/health */
-  try {
-    // We call fetch directly to also inspect status
-    const base = getApiBase();
-    const url = `${base}/api/health`;
-    try { console.debug("[api] getHealth URL:", url); } catch {}
-    const res = await fetch(url, { method: 'GET' });
-    if (res.ok) {
-      const ct = res.headers.get('content-type') || '';
-      if (ct.includes('application/json')) {
-        const data = await res.json().catch(() => ({}));
-        try { console.debug("[api] getHealth JSON:", data); } catch {}
-        return 'ok';
-      }
-      const text = (await res.text().catch(() => '')).trim().toLowerCase();
-      try { console.debug("[api] getHealth text:", text); } catch {}
-      // Any 200 is ok; keep for compatibility
-      return 'ok';
-    }
-    try { console.warn("[api] getHealth non-OK status:", res.status); } catch {}
-    return 'unavailable';
-  } catch (e) {
-    try { console.error("[api] getHealth error:", e?.message || e); } catch {}
-    return 'unavailable';
-  }
-}
+ // PUBLIC_INTERFACE
+ export async function getHealth() {
+   /** Get backend health status from /api/health
+    * Behavior:
+    * - Constructs URL as `${getApiBase()}/api/health` (e.g., http://localhost:3001/api/health for local dev)
+    * - Treats any HTTP 200 response as "ok" regardless of body or content-type
+    * - Returns 'ok' or 'unavailable'
+    */
+   try {
+     const base = getApiBase();
+     const url = `${base}/api/health`;
+     try { console.debug("[api] getHealth URL:", url); } catch {}
+     const res = await fetch(url, { method: 'GET' });
+     if (res.ok) {
+       // Any 200 is considered healthy; body is logged best-effort for diagnostics
+       const ct = (res.headers.get('content-type') || '').toLowerCase();
+       if (ct.includes('application/json')) {
+         const data = await res.json().catch(() => ({}));
+         try { console.debug("[api] getHealth JSON:", data); } catch {}
+       } else {
+         const text = (await res.text().catch(() => '')).trim();
+         try { console.debug("[api] getHealth text:", text); } catch {}
+       }
+       return 'ok';
+     }
+     try { console.warn("[api] getHealth non-OK status:", res.status); } catch {}
+     return 'unavailable';
+   } catch (e) {
+     try { console.error("[api] getHealth error:", e?.message || e); } catch {}
+     return 'unavailable';
+   }
+ }
 
 // PUBLIC_INTERFACE
 export async function getSuggestions() {

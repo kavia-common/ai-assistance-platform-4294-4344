@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { getHealth, getSuggestions, postChat } from '../api/client';
+import { getApiBase } from '../config';
 
 // PUBLIC_INTERFACE
 export function useChat() {
@@ -16,6 +17,8 @@ export function useChat() {
 
     (async () => {
       try {
+        const base = getApiBase();
+        try { console.debug('[hook] useChat health check base:', base, 'url:', `${base}/api/health`); } catch {}
         const h = await getHealth();
         if (!cancelled) setHealth(h === 'ok' ? 'ok' : 'unavailable');
       } catch {
