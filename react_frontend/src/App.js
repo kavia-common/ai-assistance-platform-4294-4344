@@ -3,6 +3,7 @@ import './index.css';
 import { getHealth, postChat } from './api/client';
 import { getApiBase } from './config';
 import MessageList from './components/MessageList';
+import { getSuggestions } from './api/suggest';
 
 // PUBLIC_INTERFACE
 export default function App() {
@@ -12,12 +13,22 @@ export default function App() {
   const [messages, setMessages] = useState([]); // in-memory chat history
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const status = await getHealth();
       if (!cancelled) setHealth(status === 'ok' ? 'ok' : 'unavailable');
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const list = await getSuggestions();
+      if (!cancelled) setSuggestions(list);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -64,6 +75,26 @@ export default function App() {
       >
         Service status: {health || 'checking...'} • API: {apiInfo}
       </div>
+
+      {Array.isArray(suggestions) && suggestions.length > 0 && (
+        <div className="card" style={{ padding: 16, marginBottom: 12 }}>
+          <strong style={{ display: 'block', marginBottom: 8 }}>Suggestions</strong>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {suggestions.map((s, idx) => (
+              <li key={idx} style={{ marginBottom: 4 }}>
+                <button
+                  className="btn"
+                  onClick={() => setInput(prev => (prev ? prev : s))}
+                  title="Use this suggestion"
+                >
+                  Use
+                </button>{' '}
+                <span className="text-muted">{s}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="card" style={{ padding: 16, marginBottom: 12 }}>
         <div style={{ marginBottom: 8, color: '#6B7280' }}>
