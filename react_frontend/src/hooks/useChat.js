@@ -40,19 +40,26 @@ export function useChat() {
     if (!text || !text.trim()) return;
     setError('');
 
-    // Optimistically append the user message
-    const userMsg = { role: 'user', content: text.trim() };
+    const cleaned = text.trim();
+    // Prepare new user message
+    const userMsg = { role: 'user', content: cleaned };
+
+    // Optimistically update UI
     setMessages(prev => [...prev, userMsg]);
     setLoading(true);
 
     try {
-      // Build context from current messages after optimistic update:
-      const context = (prev => prev)(messages); // snapshot
-      const responseMsg = await postChat({ messages: context, prompt: text.trim() });
+      // Build outgoing context to include the just-added user message
+      const outgoing = [...messages, userMsg];
+
+      // Send only messages to backend to avoid duplication; omit prompt
+      const responseMsg = await postChat({ messages: outgoing, prompt: '' });
+
       // Ensure normalized object { role, content }
       const assistantMsg = responseMsg && responseMsg.role && responseMsg.content
         ? responseMsg
         : { role: 'assistant', content: String(responseMsg ?? '') || '(no response)' };
+
       setMessages(prev => [...prev, assistantMsg]);
     } catch (e) {
       setError(e?.message || 'Failed to send message.');
