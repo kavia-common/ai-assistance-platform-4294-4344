@@ -22,19 +22,27 @@ export default function ChatWindow({
     }
   }, [messages, loading]);
 
-  const healthText = typeof health === 'string' ? health : (health ? 'ok' : '');
+  // Normalize health to a clean string from the hook contract: 'ok' | 'unavailable' | null
+  const normalizedHealth =
+    typeof health === 'string'
+      ? (health === 'ok' ? 'ok' : 'unavailable')
+      : null;
+
+  // Choose banner style: success if ok, error if unavailable
+  const healthBannerClass =
+    normalizedHealth === 'ok' ? 'banner success' : 'banner error';
 
   return (
     <section className="chat-surface" aria-label="Chat window">
       <div className="chat-scroll" ref={scrollRef}>
-        {healthText && (
-          <div className="banner success" role="status" aria-live="polite">
-            Backend reachable: {healthText}
+        {normalizedHealth && (
+          <div className={healthBannerClass} role="status" aria-live="polite">
+            Service status: {normalizedHealth}
           </div>
         )}
         {error && (
           <div className="banner error" role="alert">
-            {error}
+            {String(error)}
           </div>
         )}
         {messages.map((m, idx) => (
