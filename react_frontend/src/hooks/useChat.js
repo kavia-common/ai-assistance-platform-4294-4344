@@ -6,7 +6,7 @@ export function useChat() {
   /** Manage chat messages, loading, health, and suggestions lifecycle. */
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [health, setHealth] = useState(null);
+  const [health, setHealth] = useState(null); // normalized string 'ok' | 'unavailable'
   const [error, setError] = useState('');
   const [suggestions, setSuggestions] = useState([]);
 
@@ -16,8 +16,8 @@ export function useChat() {
 
     (async () => {
       try {
-        const h = await getHealth().catch(() => null);
-        if (!cancelled) setHealth(h || 'unavailable');
+        const h = await getHealth();
+        if (!cancelled) setHealth(h === 'ok' ? 'ok' : 'unavailable');
       } catch {
         if (!cancelled) setHealth('unavailable');
       }
@@ -37,28 +37,30 @@ export function useChat() {
   }, []);
 
   const sendMessage = useCallback(async (text) => {
+    if (!text || !text.trim()) return;
     setError('');
-    const next = [...messages, { role: 'user', content: text }];
-    setMessages(next);
+
+    // Optimistically append the user message
+    const userMsg = { role: 'user', content: text.trim() };
+    setMessages(prev => [...prev, userMsg]);
     setLoading(true);
+
     try {
-      const res = await postChat(text, next);
-      // Expecting { reply: string } or { role, content }
-      let assistantMsg = null;
-      if (res && typeof res === 'object') {
-        if (typeof res.reply === 'string') {
-          assistantMsg = { role: 'assistant', content: res.reply };
-        } else if (res.role && res.content) {
-          assistantMsg = { role: res.role, content: res.content };
-        }
-      }
-      if (!assistantMsg) {
-        assistantMsg = { role: 'assistant', content: String(res ?? '') || '(no response)' };
-      }
+      // Build context from current messages after optimistic update:
+      const context = (prev => prev)(messages); // snapshot
+      const responseMsg = await postChat({ messages: context, prompt: text.trim() });
+      // Ensure normalized object { role, content }
+      const assistantMsg = responseMsg && responseMsg.role && responseMsg.content
+        ? responseMsg
+        : { role: 'assistant', content: String(responseMsg ?? '') || '(no response)' };
       setMessages(prev => [...prev, assistantMsg]);
     } catch (e) {
       setError(e?.message || 'Failed to send message.');
-      // keep user message in history even on error
+      // Append an assistant error message for visibility
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: 'Sorry, I ran into an error processing that request.' }
+      ]);
     } finally {
       setLoading(false);
     }

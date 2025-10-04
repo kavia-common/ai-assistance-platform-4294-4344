@@ -22,12 +22,14 @@ export default function ChatWindow({
     }
   }, [messages, loading]);
 
+  const healthText = typeof health === 'string' ? health : (health ? 'ok' : '');
+
   return (
     <section className="chat-surface" aria-label="Chat window">
       <div className="chat-scroll" ref={scrollRef}>
-        {health && (
+        {healthText && (
           <div className="banner success" role="status" aria-live="polite">
-            Backend reachable: {typeof health === 'string' ? health : 'OK'}
+            Backend reachable: {healthText}
           </div>
         )}
         {error && (
