@@ -65,7 +65,14 @@ export function useChat() {
 
       setMessages(prev => [...prev, assistantMsg]);
     } catch (e) {
-      setError(e?.message || 'Failed to send message.');
+      const detail = e && typeof e === 'object'
+        ? (e.message || 'Failed to send message.')
+        : String(e || 'Failed to send message.');
+      const context = (e && typeof e === 'object')
+        ? [`URL: ${e.url || '(unknown)'}`, e.status ? `Status: ${e.status} ${e.statusText || ''}` : null].filter(Boolean).join(' | ')
+        : '';
+      const composed = [detail, context].filter(Boolean).join(' — ');
+      setError(composed || 'Failed to send message.');
       // Append an assistant error message for visibility
       setMessages(prev => [
         ...prev,

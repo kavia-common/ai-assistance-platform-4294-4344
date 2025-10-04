@@ -4,8 +4,12 @@
   * Resolution priority:
   * 1) window.__API_BASE__ (runtime override)
   * 2) REACT_APP_API_BASE (build-time)
-  * 3) Same-origin (window.location.origin) unless it's 3000 dev port
-  * 4) http://localhost:3001 (local dev fallback)
+  * 3) http://localhost:3001 (local dev when UI served at :3000)
+  * 4) Same-origin (window.location.origin) for proxied deployments
+  *
+  * Notes:
+  * - We log the final chosen base once for easier debugging in preview/production.
+  * - We avoid adding custom headers globally to reduce unnecessary CORS preflights.
   */
 
  // Normalize a candidate base to ensure it looks like an absolute URL string
@@ -18,37 +22,36 @@
    return null;
  }
 
+ let cachedApiBase = null;
+
  // PUBLIC_INTERFACE
  export function getApiBase() {
    /** Resolve the base URL for API calls. */
+   if (cachedApiBase) return cachedApiBase;
+
    const win = typeof window !== "undefined" ? window : undefined;
    const fromWindow = win && normalizeBase(win.__API_BASE__);
    const fromEnv = normalizeBase(process.env.REACT_APP_API_BASE);
 
    if (fromWindow) {
-     try { console.debug("[config] Using window.__API_BASE__:", fromWindow); } catch {}
-     return fromWindow;
-   }
-   if (fromEnv) {
-     try { console.debug("[config] Using REACT_APP_API_BASE:", fromEnv); } catch {}
-     return fromEnv;
-   }
-
-   // Step 3: same-origin fallback if available
-   if (win && win.location && win.location.origin) {
-     const sameOrigin = (win.location.origin || "").replace(/\/+$/, "");
-     // If the app is served on typical CRA dev port 3000, prefer backend default 3001 unless explicitly overridden.
-     if (/^https?:\/\/localhost:3000$/i.test(sameOrigin) || /^https?:\/\/127\.0\.0\.1:3000$/i.test(sameOrigin)) {
-       try { console.debug("[config] Same-origin is 3000; preferring backend default http://localhost:3001"); } catch {}
-       return "http://localhost:3001";
+     cachedApiBase = fromWindow;
+   } else if (fromEnv) {
+     cachedApiBase = fromEnv;
+   } else if (win && win.location && win.location.origin) {
+     const origin = (win.location.origin || "").replace(/\/+$/, "");
+     // In CRA dev on port 3000, default to backend port 3001 unless overridden.
+     if (/^https?:\/\/(localhost|127\.0\.0\.1):3000$/i.test(origin)) {
+       cachedApiBase = "http://localhost:3001";
+     } else {
+       // Same-origin for reverse-proxied deployments
+       cachedApiBase = origin;
      }
-     try { console.debug("[config] Using same-origin:", sameOrigin); } catch {}
-     return sameOrigin;
+   } else {
+     cachedApiBase = "http://localhost:3001";
    }
 
-   // Step 4: final fallback for local development
-   try { console.debug("[config] Falling back to default http://localhost:3001"); } catch {}
-   return "http://localhost:3001";
+   try { console.info("[config] API base resolved to:", cachedApiBase); } catch {}
+   return cachedApiBase;
  }
 
  // PUBLIC_INTERFACE
@@ -71,7 +74,7 @@
        try { console.debug("[config] Health text:", text); } catch {}
        return true;
      }
-     try { console.warn("[config] Health non-OK status:", res.status); } catch {}
+     try { console.warn("[config] Health non-OK status:", res.status, await res.text().catch(() => "")); } catch {}
      return false;
    } catch (e) {
      try { console.error("[config] Health check error:", e?.message || e); } catch {}

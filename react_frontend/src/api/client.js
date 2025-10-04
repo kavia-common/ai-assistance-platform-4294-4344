@@ -1,19 +1,25 @@
 import { getApiBase } from '../config';
 
-// Basic JSON/text fetch with retry/backoff for network errors only
+/**
+ * Basic JSON/text fetch with retry/backoff for network errors only.
+ * - Adds Content-Type only when we have a body and it wasn't provided.
+ * - Avoids adding default Accept/Authorization headers to reduce preflights.
+ * - Attaches status/statusText/url to thrown errors for better UI surfacing.
+ */
 async function fetchWithRetry(path, options = {}, retries = 2, backoffMs = 400) {
   const base = getApiBase();
   const url = `${base}${path}`;
   try {
     try { console.debug("[api] fetchWithRetry URL:", url); } catch {}
-    // Build headers: only set Content-Type when we have a body and it wasn't provided.
     const hasBody = typeof options.body !== 'undefined' && options.body !== null;
     const providedHeaders = options.headers || {};
+    const lower = (k) => String(k || '').toLowerCase();
     const contentTypeProvided = Object.keys(providedHeaders).some(
-      (k) => k.toLowerCase() === 'content-type'
+      (k) => lower(k) === 'content-type'
     );
     const headers = {
       ...(hasBody && !contentTypeProvided ? { 'Content-Type': 'application/json' } : {}),
+      // Intentionally avoid Accept/Authorization/custom headers unless provided
       ...providedHeaders,
     };
 
@@ -22,17 +28,19 @@ async function fetchWithRetry(path, options = {}, retries = 2, backoffMs = 400) 
       headers,
     });
 
-    // Treat non-2xx as error but do not retry unless status is 502/503/504
     if (!res.ok) {
       if ([502, 503, 504].includes(res.status) && retries > 0) {
         await new Promise(r => setTimeout(r, backoffMs));
         return fetchWithRetry(path, options, retries - 1, backoffMs * 1.5);
       }
       const text = await res.text().catch(() => '');
-      throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+      const err = new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+      err.status = res.status;
+      err.statusText = res.statusText;
+      err.url = url;
+      throw err;
     }
 
-    // Attempt json, fallback to text
     const contentType = res.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       return res.json();
@@ -62,7 +70,6 @@ async function fetchWithRetry(path, options = {}, retries = 2, backoffMs = 400) 
      try { console.debug("[api] getHealth URL:", url); } catch {}
      const res = await fetch(url, { method: 'GET' });
      if (res.ok) {
-       // Any 200 is considered healthy; body is logged best-effort for diagnostics
        const ct = (res.headers.get('content-type') || '').toLowerCase();
        if (ct.includes('application/json')) {
          const data = await res.json().catch(() => ({}));
@@ -81,7 +88,7 @@ async function fetchWithRetry(path, options = {}, retries = 2, backoffMs = 400) 
    }
  }
 
-// PUBLIC_INTERFACE
+ // PUBLIC_INTERFACE
 export async function getSuggestions() {
   /** Retrieve suggestions from /api/suggest */
   return fetchWithRetry('/api/suggest', { method: 'GET' });
