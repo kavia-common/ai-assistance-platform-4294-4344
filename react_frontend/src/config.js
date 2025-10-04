@@ -4,26 +4,44 @@
  * Resolution priority:
  * - If window.__API_BASE__ is set, use it (allows runtime override).
  * - If REACT_APP_API_BASE env is set at build time, use it.
- * - If same-origin deployment with backend mounted under /, use window.location.origin.
- * - Fallback to http://localhost:3001 for local dev.
+ * - Prefer explicit local backend default http://localhost:3001 for split-port dev/preview.
+ * - Finally, use window.location.origin for same-origin reverse-proxy deployments.
  */
+
+// Normalize a candidate base to ensure it looks like an absolute URL string
+function normalizeBase(maybe) {
+  if (!maybe || typeof maybe !== "string") return null;
+  const s = maybe.trim();
+  if (!s) return null;
+  // Accept http(s) absolute URLs only
+  if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, ""); // drop trailing slash
+  return null;
+}
 
 // PUBLIC_INTERFACE
 export function getApiBase() {
   /** Resolve the base URL for API calls. */
   const win = typeof window !== "undefined" ? window : undefined;
-  const fromWindow = win && win.__API_BASE__;
-  const fromEnv = process.env.REACT_APP_API_BASE;
+  const fromWindow = win && normalizeBase(win.__API_BASE__);
+  const fromEnv = normalizeBase(process.env.REACT_APP_API_BASE);
 
-  if (fromWindow && typeof fromWindow === "string") return fromWindow;
-  if (fromEnv && typeof fromEnv === "string") return fromEnv;
+  if (fromWindow) return fromWindow;
+  if (fromEnv) return fromEnv;
 
-  if (win && win.location) {
-    // If frontend is served from the same host as backend, prefer same origin.
-    // This works when a reverse proxy maps /api to backend.
-    return win.location.origin;
+  // Prefer explicit local backend port for split-port dev environments
+  const localDefault = "http://localhost:3001";
+
+  // If running in a context where 3001 is not reachable, callers can override via window.__API_BASE__ or env
+  if (typeof window !== "undefined") {
+    // In most dev/preview setups, backend is exposed on 3001
+    return localDefault;
   }
-  return "http://localhost:3001";
+
+  // Last resort: same-origin (used when a reverse proxy mounts /api on the same host)
+  if (win && win.location) {
+    return (win.location.origin || "").replace(/\/+$/, "");
+  }
+  return localDefault;
 }
 
 // PUBLIC_INTERFACE
